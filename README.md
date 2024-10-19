@@ -82,3 +82,9 @@ aws-fargate-examples/
     ```bash
     aws cloudformation deploy --template-file project-1/cloudformation-template.yaml --stack-name project-1-stack
     ```
+
+### Contributing
+We welcome contributions! Feel free to fork the repository, create a new branch, and submit a pull request. Please ensure your code is well-documented and adheres to best practices.
+
+### License
+This project is licensed under the MIT License - see the LICENSE file for details.
