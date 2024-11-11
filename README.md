@@ -69,7 +69,16 @@ aws-fargate-examples/
 2. **Build the Docker Image**:
     Navigate to a project directory and build the Docker image:
     ```bash
-    docker compose build
+    docker build -t mautic-local-test .
+
+    docker run -d --name mautic-local -p 8081:80 \
+  -e MAUTIC_DB_HOST=db \
+  -e MAUTIC_DB_NAME=mautic \
+  -e MAUTIC_DB_USER=mautic \
+  -e MAUTIC_DB_PASSWORD=mautic_password \
+  -e MAUTIC_TRUSTED_PROXIES='["0.0.0.0/0"]' \
+  mautic-local-test
+
     ```
 
 3. **Run Locally**:
