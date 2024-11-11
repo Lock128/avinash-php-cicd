@@ -1,3 +1,4 @@
+## Deploy Mautic to ECS Fargate 
 
 ### Prequisites 
 - Install AWS CLI and configure AWS Credentials https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-install.html
