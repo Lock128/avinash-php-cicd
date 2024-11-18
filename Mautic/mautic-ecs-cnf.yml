@@ -111,7 +111,7 @@ Resources:
       Memory: '1024'
       ContainerDefinitions:
         - Name: 'mysql'
-          Image: 'mysql:8.0'
+          Image: '276313926502.dkr.ecr.us-east-1.amazonaws.com/mautic-mysql:latest'
           Cpu: 512
           Memory: 1024
           PortMappings:
@@ -120,12 +120,6 @@ Resources:
           Environment:
             - Name: 'MYSQL_ROOT_PASSWORD'
               Value: 'root_password'
-          LogConfiguration:
-            LogDriver: 'awslogs'
-            Options:
-              awslogs-group: '/ecs/mysql'
-              awslogs-region: 'us-east-1'
-              awslogs-stream-prefix: 'ecs'
 
   MauticService:
     Type: 'AWS::ECS::Service'
