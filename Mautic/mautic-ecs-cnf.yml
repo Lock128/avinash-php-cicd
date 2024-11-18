@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  DefaultVPC:
+    Description: "The ID of the default VPC"
+    Type: "AWS::EC2::VPC::Id"
+
+  DefaultSubnets:
+    Description: "The IDs of the default subnets in the default VPC"
+    Type: "List<AWS::EC2::Subnet::Id>"
+
+Resources:
+  MauticECSTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'ecs-tasks.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+      Path: '/'
+      RoleName: 'MauticECSTaskExecutionRole'
+
+  MauticSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security group for Mautic ECS service'
+      VpcId: !Ref DefaultVPC
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: 80
+          ToPort: 80
+          CidrIp: '0.0.0.0/0'
+
+  MySQLSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security group for MySQL ECS service'
+      VpcId: !Ref DefaultVPC
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref MauticSecurityGroup
+
+  MauticCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: 'MauticCluster'
+
+  MauticTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: 'mautic-yt-video'
+      TaskRoleArn: !Ref MauticECSTaskExecutionRole
+      ExecutionRoleArn: !Ref MauticECSTaskExecutionRole
+      NetworkMode: 'awsvpc'
+      RequiresCompatibilities:
+        - 'FARGATE'
+      Cpu: '1024'
+      Memory: '3072'
+      ContainerDefinitions:
+        - Name: 'mautic'
+          Image: '276313926502.dkr.ecr.us-east-1.amazonaws.com/mautic:latest'
+          Cpu: 1024
+          Memory: 3072
+          MemoryReservation: 1024
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: 'tcp'
+          Environment:
+            - Name: 'MAUTIC_DB_HOST'
+              Value: 'localhost'
+            - Name: 'MAUTIC_DB_PASSWORD'
+              Value: 'mautic_password'
+            - Name: 'MAUTIC_DB_NAME'
+              Value: 'mautic'
+            - Name: 'DOCKER_MAUTIC_ROLE'
+              Value: 'mautic_web'
+            - Name: 'MAUTIC_TRUSTED_PROXIES'
+              Value: "[\"0.0.0.0/0\"]"
+            - Name: 'MAUTIC_DB_USER'
+              Value: 'mautic'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: '/ecs/mautic-yt-video'
+              awslogs-region: 'us-east-1'
+              awslogs-stream-prefix: 'ecs'
+              mode: 'non-blocking'
+              max-buffer-size: '25m'
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'
+
+  MySQLTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: 'mysql'
+      TaskRoleArn: !Ref MauticECSTaskExecutionRole
+      ExecutionRoleArn: !Ref MauticECSTaskExecutionRole
+      NetworkMode: 'awsvpc'
+      RequiresCompatibilities:
+        - 'FARGATE'
+      Cpu: '512'
+      Memory: '1024'
+      ContainerDefinitions:
+        - Name: 'mysql'
+          Image: 'mysql:8.0'
+          Cpu: 512
+          Memory: 1024
+          PortMappings:
+            - ContainerPort: 3306
+              Protocol: 'tcp'
+          Environment:
+            - Name: 'MYSQL_ROOT_PASSWORD'
+              Value: 'root_password'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: '/ecs/mysql'
+              awslogs-region: 'us-east-1'
+              awslogs-stream-prefix: 'ecs'
+
+  MauticService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref MauticCluster
+      TaskDefinition: !Ref MauticTaskDefinition
+      DesiredCount: 1
+      LaunchType: 'FARGATE'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref DefaultSubnets
+          SecurityGroups:
+            - !Ref MauticSecurityGroup
+          AssignPublicIp: 'ENABLED'
+      ServiceName: 'MauticService'
+
+  MySQLService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref MauticCluster
+      TaskDefinition: !Ref MySQLTaskDefinition
+      DesiredCount: 1
+      LaunchType: 'FARGATE'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref DefaultSubnets
+          SecurityGroups:
+            - !Ref MySQLSecurityGroup
+          AssignPublicIp: 'ENABLED'
+      ServiceName: 'MySQLService'
+
+Outputs:
+  MauticClusterArn:
+    Description: "ARN of the Mautic ECS Cluster"
+    Value: !Ref MauticCluster
+  MauticTaskDefinitionArn:
+    Description: "ARN of the Mautic Task Definition"
+    Value: !Ref MauticTaskDefinition
+  MauticServiceArn:
+    Description: "ARN of the Mautic Service"
+    Value: !Ref MauticService
+  MySQLTaskDefinitionArn:
+    Description: "ARN of the MySQL Task Definition"
+    Value: !Ref MySQLTaskDefinition
+  MySQLServiceArn:
+    Description: "ARN of the MySQL Service"
+    Value: !Ref MySQLService
+  MauticECSTaskExecutionRoleArn:
+    Description: "ARN of the Mautic ECS Task Execution Role"
+    Value: !GetAtt MauticECSTaskExecutionRole.Arn

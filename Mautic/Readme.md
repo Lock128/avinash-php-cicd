@@ -2,6 +2,7 @@
 
 ### Prequisites 
 - Install AWS CLI and configure AWS Credentials https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-install.html
+- Docker Deskop 
 
 ### To Push image to ECR 
 1. Create ECR repository for Mautic as "mautic" name. 

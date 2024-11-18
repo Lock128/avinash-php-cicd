@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MauticTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: 'mautic-yt-video'
+      TaskRoleArn: 'arn:aws:iam::276313926502:role/ecsTaskExecutionRole'
+      ExecutionRoleArn: 'arn:aws:iam::276313926502:role/ecsTaskExecutionRole'
+      NetworkMode: 'awsvpc'
+      RequiresCompatibilities:
+        - 'FARGATE'
+      Cpu: '1024'
+      Memory: '3072'
+      ContainerDefinitions:
+        - Name: 'mautic'
+          Image: '276313926502.dkr.ecr.us-east-1.amazonaws.com/mautic:latest'
+          Cpu: 1024
+          Memory: 3072
+          MemoryReservation: 1024
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: 'tcp'
+          Environment:
+            - Name: 'MAUTIC_DB_HOST'
+              Value: 'database-1.cz6cj6e6xicl.us-east-1.rds.amazonaws.com'
+            - Name: 'MAUTIC_DB_PASSWORD'
+              Value: 'mautic_password'
+            - Name: 'MAUTIC_DB_NAME'
+              Value: 'mautic'
+            - Name: 'DOCKER_MAUTIC_ROLE'
+              Value: 'mautic_web'
+            - Name: 'MAUTIC_TRUSTED_PROXIES'
+              Value: "[\"0.0.0.0/0\"]"
+            - Name: 'MAUTIC_DB_USER'
+              Value: 'mautic'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: '/ecs/mautic-yt-video'
+              awslogs-region: 'us-east-1'
+              awslogs-stream-prefix: 'ecs'
+              mode: 'non-blocking'
+              max-buffer-size: '25m'
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'
