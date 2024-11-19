@@ -48,6 +48,10 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !Ref MauticSecurityGroup
+        - IpProtocol: 'tcp'
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: '172.31.0.0/16' #you can use your default VPC CIDR block range or VPC CIDR range. 
 
   MySQLTargetGroup:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
