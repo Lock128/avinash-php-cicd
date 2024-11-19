@@ -1,4 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Description: Setup for Mautic and MySQL with a load balancer on AWS ECS using Fargate.
+
 Parameters:
   DefaultVPC:
     Description: "The ID of the default VPC"
@@ -47,6 +49,36 @@ Resources:
           ToPort: 3306
           SourceSecurityGroupId: !Ref MauticSecurityGroup
 
+  MySQLTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      VpcId: !Ref DefaultVPC
+      Port: 3306
+      Protocol: TCP
+      TargetType: ip
+      HealthCheckProtocol: TCP
+      HealthCheckPort: '3306'
+
+  MySQLLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Scheme: 'internet-facing'
+      Subnets: !Ref DefaultSubnets
+      Type: 'network'
+      LoadBalancerAttributes:
+        - Key: 'deletion_protection.enabled'
+          Value: 'false'
+
+  MySQLListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref MySQLTargetGroup
+      LoadBalancerArn: !Ref MySQLLoadBalancer
+      Port: 3306
+      Protocol: TCP
+
   MauticCluster:
     Type: 'AWS::ECS::Cluster'
     Properties:
@@ -75,7 +107,7 @@ Resources:
               Protocol: 'tcp'
           Environment:
             - Name: 'MAUTIC_DB_HOST'
-              Value: 'localhost'
+              Value: !GetAtt MySQLLoadBalancer.DNSName
             - Name: 'MAUTIC_DB_PASSWORD'
               Value: 'mautic_password'
             - Name: 'MAUTIC_DB_NAME'
@@ -94,9 +126,6 @@ Resources:
               awslogs-stream-prefix: 'ecs'
               mode: 'non-blocking'
               max-buffer-size: '25m'
-      RuntimePlatform:
-        CpuArchitecture: 'X86_64'
-        OperatingSystemFamily: 'LINUX'
 
   MySQLTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
@@ -111,7 +140,7 @@ Resources:
       Memory: '1024'
       ContainerDefinitions:
         - Name: 'mysql'
-          Image: '276313926502.dkr.ecr.us-east-1.amazonaws.com/mautic-mysql:latest'
+          Image: '276313926502.dkr.ecr.us-east-1.amazonaws.com/mautic-mysql@sha256:3408e99ad8c7d5458c2969046555a2fa47259fd0838c521f7aef9cbc8b1bd23d'
           Cpu: 512
           Memory: 1024
           PortMappings:
@@ -119,7 +148,27 @@ Resources:
               Protocol: 'tcp'
           Environment:
             - Name: 'MYSQL_ROOT_PASSWORD'
-              Value: 'root_password'
+              Value: 'mautic_password'
+
+  MySQLService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref MauticCluster
+      TaskDefinition: !Ref MySQLTaskDefinition
+      DesiredCount: 1
+      LaunchType: 'FARGATE'
+      LoadBalancers:
+        - ContainerName: 'mysql'
+          ContainerPort: 3306
+          TargetGroupArn: !Ref MySQLTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref DefaultSubnets
+          SecurityGroups:
+            - !Ref MySQLSecurityGroup
+          AssignPublicIp: 'ENABLED'
+      ServiceName: 'MySQLService'
+    DependsOn: MySQLListener  # Ensure the listener is ready before creating the service
 
   MauticService:
     Type: 'AWS::ECS::Service'
@@ -135,21 +184,8 @@ Resources:
             - !Ref MauticSecurityGroup
           AssignPublicIp: 'ENABLED'
       ServiceName: 'MauticService'
+    DependsOn: MySQLListener  # It's a good practice to ensure all dependencies are resolved
 
-  MySQLService:
-    Type: 'AWS::ECS::Service'
-    Properties:
-      Cluster: !Ref MauticCluster
-      TaskDefinition: !Ref MySQLTaskDefinition
-      DesiredCount: 1
-      LaunchType: 'FARGATE'
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets: !Ref DefaultSubnets
-          SecurityGroups:
-            - !Ref MySQLSecurityGroup
-          AssignPublicIp: 'ENABLED'
-      ServiceName: 'MySQLService'
 
 Outputs:
   MauticClusterArn:
@@ -167,6 +203,9 @@ Outputs:
   MySQLServiceArn:
     Description: "ARN of the MySQL Service"
     Value: !Ref MySQLService
+  MySQLLoadBalancerDNS:
+    Description: "DNS Name of the MySQL Load Balancer"
+    Value: !GetAtt MySQLLoadBalancer.DNSName
   MauticECSTaskExecutionRoleArn:
     Description: "ARN of the Mautic ECS Task Execution Role"
     Value: !GetAtt MauticECSTaskExecutionRole.Arn
