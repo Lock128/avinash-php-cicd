@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  SimplePHPWebsiteTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      family: simple-php-website-task
+      requiresCompatibilities:
+        - FARGATE
+      networkMode: awsvpc
+      cpu: 256
+      memory: 512
+      executionRoleArn: arn:aws:iam::{account_id}:role/PhpTaskExecutionRole
+
+      containerDefinitions:
+        - name: simple-php-container
+          image: 276313926502.dkr.ecr.us-east-1.amazonaws.com/fargate-examples/simple-php-website:latest
+          essential: true
+          portMappings:
+            - containerPort: 80
+              HostPort: 80
+              protocol: tcp
+          logConfiguration:
+            logDriver: awslogs
+            options:
+              awslogs-group: /ecs/simple-php-website
+              awslogs-region: us-east-1
+              awslogs-stream-prefix: ecs
+          environment:
+            - name: APP_ENV
+              value: production
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'

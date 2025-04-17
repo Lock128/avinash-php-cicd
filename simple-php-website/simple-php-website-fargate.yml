@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy simple PHP website with MySQL inside the same ECS Fargate Task
+
+Parameters:
+  DefaultVPC:
+    Description: The ID of the default VPC
+    Type: AWS::EC2::VPC::Id
+
+  DefaultSubnets:
+    Description: List of Subnet IDs
+    Type: List<AWS::EC2::Subnet::Id>
+
+Resources:
+  PhpMysqlTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: PhpMysqlTaskExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+  PhpMysqlLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/simple-php-website
+      RetentionInDays: 7
+
+  PhpMysqlSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for PHP+MySQL ECS task
+      VpcId: !Ref DefaultVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  PhpMysqlCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: simple-php-website-cluster
+
+  PhpMysqlTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: simple-php-website-combined
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt PhpMysqlTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: mysql
+          Image: mysql:8
+          Essential: true
+          Environment:
+            - Name: MYSQL_ROOT_PASSWORD
+              Value: password
+            - Name: MYSQL_DATABASE
+              Value: sampledb
+          PortMappings:
+            - ContainerPort: 3306
+              Protocol: tcp
+        - Name: php-app
+          Image: 276313926502.dkr.ecr.us-east-1.amazonaws.com/fargate-examples/simple-php-website:latest
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/simple-php-website
+              awslogs-region: us-east-1
+              awslogs-stream-prefix: phpapp
+
+  PhpMysqlService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref PhpMysqlCluster
+      TaskDefinition: !Ref PhpMysqlTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref DefaultSubnets
+          SecurityGroups:
+            - !Ref PhpMysqlSecurityGroup
+      ServiceName: simple-php-website-service
+
+Outputs:
+  ClusterName:
+    Description: ECS Cluster for PHP+MySQL App
+    Value: !Ref PhpMysqlCluster
+  TaskDefinitionArn:
+    Description: Task Definition ARN
+    Value: !Ref PhpMysqlTaskDefinition
+  ServiceName:
+    Description: ECS Service Name
+    Value: !Ref PhpMysqlService
