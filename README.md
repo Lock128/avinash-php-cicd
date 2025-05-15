@@ -13,6 +13,7 @@ Welcome to the **AWS Fargate Examples** repository! This collection showcases mu
 - [Projects](#projects)
   - [Mautic](#Mautic)
   - [GoLang](#GoLang) 
+- [CI/CD Workflow](#cicd-workflow)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -94,6 +95,27 @@ aws-fargate-examples/
 
 ### Contributing
 We welcome contributions! Feel free to fork the repository, create a new branch, and submit a pull request. Please ensure your code is well-documented and adheres to best practices.
+
+## CI/CD Workflow
+
+This repository includes a GitHub Actions workflow for continuous integration and deployment to AWS Fargate. The workflow automatically builds Docker images and deploys them to AWS using CloudFormation templates.
+
+### Workflow Features
+
+- Builds Docker images for all projects in the repository
+- Pushes images to Amazon ECR
+- Deploys applications using CloudFormation templates
+- Uses OIDC for secure authentication with AWS
+
+### Setup Instructions
+
+To use the CI/CD workflow:
+
+1. Set up an IAM role in your AWS account for GitHub Actions OIDC authentication
+2. Add the role ARN as a GitHub secret named `AWS_ROLE_ARN`
+3. Create the necessary ECR repositories in your AWS account
+
+For detailed instructions, see the [CI/CD Workflow README](.github/workflows/README.md).
 
 ### License
 This project is licensed under the MIT License - see the LICENSE file for details.
