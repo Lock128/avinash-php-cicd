@@ -11,7 +11,6 @@ jobs:
     permissions:
       id-token: write   # Required for OIDC authentication
       contents: read    # Required to checkout the code
-      metadata: write   # Required for OIDC authentication
     
     steps:
       - name: Checkout code
