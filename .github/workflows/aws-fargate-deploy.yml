@@ -1,0 +1,88 @@
+name: AWS Fargate CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for OIDC authentication
+  contents: read    # Required to checkout the code
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # Build and push Mautic Docker image
+      - name: Build and push Mautic image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./Mautic
+          file: ./Mautic/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/mautic:latest
+
+      # Build and push Mautic MySQL Docker image
+      - name: Build and push Mautic MySQL image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./Mautic
+          file: ./Mautic/Dockerfile.MySQL
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/mautic-mysql:latest
+
+      # Build and push simple-php-website Docker image
+      - name: Build and push simple-php-website image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./simple-php-website
+          file: ./simple-php-website/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/fargate-examples/simple-php-website:latest
+
+      # Update CloudFormation templates with the correct ECR repository URLs if needed
+      - name: Update CloudFormation templates
+        run: |
+          # If needed, update the ECR repository URLs in the CloudFormation templates
+          # This step can be expanded if dynamic updates to the templates are required
+          echo "CloudFormation templates are ready for deployment"
+
+      # Deploy Mautic using CloudFormation
+      - name: Deploy Mautic to AWS Fargate
+        run: |
+          aws cloudformation deploy \
+            --template-file ./Mautic/mautic-ecs-cnf.yml \
+            --stack-name mautic-fargate-stack \
+            --parameter-overrides \
+              DefaultVPC=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text) \
+              DefaultSubnets=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text)" --query "Subnets[*].SubnetId" --output json) \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+      # Deploy simple-php-website using CloudFormation
+      - name: Deploy simple-php-website to AWS Fargate
+        run: |
+          aws cloudformation deploy \
+            --template-file ./simple-php-website/simple-php-website-fargate.yml \
+            --stack-name simple-php-website-fargate-stack \
+            --parameter-overrides \
+              DefaultVPC=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text) \
+              DefaultSubnets=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text)" --query "Subnets[*].SubnetId" --output json) \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
